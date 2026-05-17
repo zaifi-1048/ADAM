@@ -1,0 +1,89 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper functions ─────────────────────────────────────────────────────
+
+    // User is signed in
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    // The requesting user owns the document
+    function isOwner(uid) {
+      return isAuth() && request.auth.uid == uid;
+    }
+
+    // Only the fields listed may be written
+    function onlyFields(fields) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields);
+    }
+
+    // ── Users ─────────────────────────────────────────────────────────────────
+    match /users/{uid} {
+
+      // Any signed-in user can read their own profile
+      allow read: if isOwner(uid);
+
+      // Create: only by the owner, must contain required fields
+      allow create: if isOwner(uid)
+        && request.resource.data.keys().hasAll(['uid', 'email', 'fullName', 'createdAt']);
+
+      // Update: owner only, cannot change uid / email / createdAt
+      allow update: if isOwner(uid)
+        && !request.resource.data.diff(resource.data).affectedKeys()
+              .hasAny(['uid', 'email', 'createdAt']);
+
+      // No client-side deletes of user profiles
+      allow delete: if false;
+
+      // ── Sessions ───────────────────────────────────────────────────────────
+      match /sessions/{sessionId} {
+        allow read, write: if isOwner(uid);
+
+        // ── Messages ─────────────────────────────────────────────────────────
+        match /messages/{messageId} {
+          allow read: if isOwner(uid);
+
+          // Create: owner only, required fields present
+          allow create: if isOwner(uid)
+            && request.resource.data.keys().hasAll(
+                 ['id', 'sessionId', 'role', 'type', 'content', 'timestamp']
+               )
+            && request.resource.data.role in ['user', 'assistant']
+            && request.resource.data.type in ['text', 'voice'];
+
+          // No editing or deleting individual messages
+          allow update, delete: if false;
+        }
+      }
+
+      // ── Tasks ──────────────────────────────────────────────────────────────
+      match /tasks/{taskId} {
+        allow read: if isOwner(uid);
+
+        allow create: if isOwner(uid)
+          && request.resource.data.keys().hasAll(
+               ['id', 'uid', 'title', 'status', 'createdAt']
+             )
+          && request.resource.data.uid == uid
+          && request.resource.data.status in
+               ['pending', 'inProgress', 'completed', 'cancelled'];
+
+        allow update: if isOwner(uid)
+          // Cannot change task ownership
+          && request.resource.data.uid == uid
+          && request.resource.data.status in
+               ['pending', 'inProgress', 'completed', 'cancelled'];
+
+        allow delete: if isOwner(uid);
+      }
+    }
+
+    // Deny everything else by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
