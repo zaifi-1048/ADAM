@@ -1,6 +1,13 @@
 # API Keys — never commit
 lib/config/api_keys.dart
 update_to_openai.ps1
+assets/config/service_account.json
+*.json
+!pubspec.lock
+!firebase.json
+!firestore.indexes.json
+!firebase/firestore.indexes.json
+!android/app/google-services.json
 
 # Miscellaneous
 *.class

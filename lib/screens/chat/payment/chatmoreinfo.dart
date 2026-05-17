@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
+import 'package:flutter/services.dart';
+import 'package:googleapis_auth/auth_io.dart' as auth;
 import 'package:ai_voice_chat/screens/chat/image_gallery_screen.dart';
 import 'package:ai_voice_chat/widgets/customnavbar.dart';
 import 'package:flutter/material.dart';
@@ -29,7 +31,10 @@ class _ChatMoreInfoScreenState extends State<ChatMoreInfoScreen>
   late AnimationController _shimmerCtrl;
   late AnimationController _pulseCtrl;
 
-  static const _pollinationsUrl = 'https://image.pollinations.ai/prompt';
+  static const _projectId = 'adam-496618';
+  static const _location = 'us-central1';
+  static const _vertexUrl =
+      'https://us-central1-aiplatform.googleapis.com/v1/projects/$_projectId/locations/$_location/publishers/google/models/imagen-3.0-generate-001:predict';
 
   String _selectedSize = 'Square';
   String _selectedStyle = 'None';
@@ -42,23 +47,20 @@ class _ChatMoreInfoScreenState extends State<ChatMoreInfoScreen>
     {
       'label': 'Square',
       'icon': Icons.crop_square,
-      'width': 1024,
-      'height': 1024,
-      'dim': '1024×1024',
+      'api': '1:1',
+      'dim': '1:1',
     },
     {
       'label': 'Landscape',
       'icon': Icons.crop_landscape,
-      'width': 1280,
-      'height': 720,
-      'dim': '1280×720',
+      'api': '16:9',
+      'dim': '16:9',
     },
     {
       'label': 'Portrait',
       'icon': Icons.crop_portrait,
-      'width': 720,
-      'height': 1280,
-      'dim': '720×1280',
+      'api': '9:16',
+      'dim': '9:16',
     },
   ];
 
@@ -139,8 +141,21 @@ class _ChatMoreInfoScreenState extends State<ChatMoreInfoScreen>
   }
 
   // ════════════════════════════════════════════
-  // ── Pollinations AI Image Generation ──
+  // ── Vertex AI Imagen 3 Image Generation ──
   // ════════════════════════════════════════════
+  Future<String> _getAccessToken() async {
+    final jsonStr = await rootBundle.loadString(
+      'assets/config/service_account.json',
+    );
+    final jsonMap = jsonDecode(jsonStr) as Map<String, dynamic>;
+    final credentials = auth.ServiceAccountCredentials.fromJson(jsonMap);
+    final scopes = ['https://www.googleapis.com/auth/cloud-platform'];
+    final client = await auth.clientViaServiceAccount(credentials, scopes);
+    final token = client.credentials.accessToken.data;
+    client.close();
+    return token;
+  }
+
   Future<void> _generateImage() async {
     final prompt = _promptController.text.trim();
     if (prompt.isEmpty) {
@@ -157,7 +172,7 @@ class _ChatMoreInfoScreenState extends State<ChatMoreInfoScreen>
     setState(() {
       _isGenerating = true;
       _generatedImage = null;
-      _statusText = 'Sending request...';
+      _statusText = 'Authenticating...';
     });
 
     try {
@@ -169,36 +184,49 @@ class _ChatMoreInfoScreenState extends State<ChatMoreInfoScreen>
           ? '$prompt, $stylePrompt'
           : prompt;
 
-      final size = _sizes.firstWhere((s) => s['label'] == _selectedSize);
-      final width = size['width'] as int;
-      final height = size['height'] as int;
-      final enhance = _quality == 'hd';
-      final encodedPrompt = Uri.encodeComponent(fullPrompt);
-      final seed = DateTime.now().millisecondsSinceEpoch % 1000000;
+      final aspectRatio =
+          (_sizes.firstWhere((s) => s['label'] == _selectedSize)['api']
+              as String);
 
-      final url =
-          '$_pollinationsUrl/$encodedPrompt'
-          '?width=$width&height=$height'
-          '&enhance=$enhance'
-          '&nologo=true'
-          '&seed=$seed';
-
+      final token = await _getAccessToken();
       setState(() => _statusText = 'Painting your image...');
 
       final response = await http
-          .get(Uri.parse(url))
-          .timeout(const Duration(seconds: 90));
+          .post(
+            Uri.parse(_vertexUrl),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode({
+              'instances': [
+                {'prompt': fullPrompt},
+              ],
+              'parameters': {
+                'sampleCount': 1,
+                'aspectRatio': aspectRatio,
+                'enhancePrompt': _quality == 'hd',
+              },
+            }),
+          )
+          .timeout(const Duration(seconds: 120));
 
       if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final base64Image =
+            data['predictions'][0]['bytesBase64Encoded'] as String;
         setState(() {
-          _generatedImage = response.bodyBytes;
+          _generatedImage = base64Decode(base64Image);
           _isGenerating = false;
           _statusText = '';
         });
       } else {
+        final error = jsonDecode(response.body);
+        final msg =
+            error['error']?['message'] as String? ?? 'Generation failed.';
         setState(() {
           _isGenerating = false;
-          _statusText = 'Generation failed. Try again.';
+          _statusText = msg;
         });
       }
     } catch (e) {
@@ -206,7 +234,7 @@ class _ChatMoreInfoScreenState extends State<ChatMoreInfoScreen>
         _isGenerating = false;
         _statusText = 'Connection error — check your network.';
       });
-      debugPrint('Pollinations error: $e');
+      debugPrint('Vertex AI error: $e');
     }
   }
 
@@ -347,7 +375,7 @@ class _ChatMoreInfoScreenState extends State<ChatMoreInfoScreen>
               Row(
                 children: [
                   Text(
-                    'Pollinations AI',
+                    'Imagen 3',
                     style: GoogleFonts.jetBrainsMono(
                       color: _cyan,
                       fontSize: 10,
@@ -365,7 +393,7 @@ class _ChatMoreInfoScreenState extends State<ChatMoreInfoScreen>
                       border: Border.all(color: _green.withOpacity(0.3)),
                     ),
                     child: Text(
-                      'Free',
+                      'Vertex AI',
                       style: GoogleFonts.jetBrainsMono(
                         color: _green,
                         fontSize: 8,
@@ -513,7 +541,7 @@ class _ChatMoreInfoScreenState extends State<ChatMoreInfoScreen>
   Widget _buildSizeSection() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      _sectionLabel('Canvas Size', 'Select output dimensions'),
+      _sectionLabel('Canvas Size', 'Imagen 3 supported aspect ratios'),
       const SizedBox(height: 12),
       SizedBox(
         height: 86,
@@ -784,7 +812,7 @@ class _ChatMoreInfoScreenState extends State<ChatMoreInfoScreen>
               border: Border.all(color: _green.withOpacity(0.3)),
             ),
             child: Text(
-              'Pollinations · ${(_sizes.firstWhere((s) => s['label'] == _selectedSize)['dim'] as String)}',
+              'Imagen 3 · ${(_sizes.firstWhere((s) => s['label'] == _selectedSize)['dim'] as String)}',
               style: GoogleFonts.jetBrainsMono(color: _green, fontSize: 9),
             ),
           ),

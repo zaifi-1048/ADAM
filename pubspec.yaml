@@ -73,6 +73,7 @@ dependencies:
 
   # Notifications
   flutter_markdown: ^0.7.4
+  googleapis_auth: ^1.6.0
   flutter_local_notifications: ^18.0.0
   timezone: ^0.9.4
 
@@ -111,6 +112,7 @@ flutter:
     - assets/
     - assets/icons/
     - assets/images/
+    - assets/config/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
