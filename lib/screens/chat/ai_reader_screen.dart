@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:ai_voice_chat/config/api_keys.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
@@ -666,12 +667,38 @@ class _AiReaderScreenState extends State<AiReaderScreen> {
                                 ],
                               ),
                               const SizedBox(height: 10),
-                              Text(
-                                _summary,
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 14,
-                                  height: 1.5,
+                              MarkdownBody(
+                                data: _summary,
+                                styleSheet: MarkdownStyleSheet(
+                                  p: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 14,
+                                    height: 1.5,
+                                  ),
+                                  strong: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                  h1: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  h2: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  h3: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  listBullet: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 14,
+                                  ),
                                 ),
                               ),
                             ],

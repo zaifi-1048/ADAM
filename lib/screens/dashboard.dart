@@ -389,7 +389,7 @@ class _LiveStats extends StatelessWidget {
           .collection('users')
           .doc(user.uid)
           .collection('tasks')
-          .where('completed', isEqualTo: false)
+          .where('status', isEqualTo: 'pending')
           .snapshots(),
       builder: (_, taskSnap) {
         final pending = taskSnap.data?.docs.length ?? 0;

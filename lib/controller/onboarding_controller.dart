@@ -15,7 +15,7 @@ class OnboardingController extends GetxController {
     {
       'title': 'Fast Replies, Smooth Chat',
       'subtitle':
-          'Experience quick, natural conversations designed to help you get things done with ease. Ask, explore, and interact freely — everything responds instantly and intelligently.',
+          'Experience quick, natural conversations designed to help you get things done with ease. Ask, explore, and interact freely, everything responds instantly and intelligently.',
       'image': 'assets/images/qwe.png',
     },
     {

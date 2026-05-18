@@ -44,25 +44,16 @@ class _ChatMoreInfoScreenState extends State<ChatMoreInfoScreen>
   String _statusText = '';
 
   final List<Map<String, dynamic>> _sizes = [
-    {
-      'label': 'Square',
-      'icon': Icons.crop_square,
-      'api': '1:1',
-      'dim': '1:1',
-    },
-    {
-      'label': 'Landscape',
-      'icon': Icons.crop_landscape,
-      'api': '16:9',
-      'dim': '16:9',
-    },
-    {
-      'label': 'Portrait',
-      'icon': Icons.crop_portrait,
-      'api': '9:16',
-      'dim': '9:16',
-    },
+    {'label': 'Square', 'icon': Icons.crop_square, 'api': '1:1', 'dim': '1:1'},
+    {'label': 'Landscape', 'icon': Icons.crop_landscape, 'api': '16:9', 'dim': '16:9'},
+    {'label': 'Portrait', 'icon': Icons.crop_portrait, 'api': '9:16', 'dim': '9:16'},
+    {'label': '4:3', 'icon': Icons.crop, 'api': '4:3', 'dim': '4:3'},
+    {'label': '3:4', 'icon': Icons.crop, 'api': '3:4', 'dim': '3:4'},
+    {'label': 'Custom', 'icon': Icons.tune_rounded, 'api': 'custom', 'dim': 'Custom'},
   ];
+
+  String _customAspectRatio = '1:1';
+  final TextEditingController _customRatioController = TextEditingController();
 
   final List<Map<String, dynamic>> _styles = [
     {
@@ -130,9 +121,68 @@ class _ChatMoreInfoScreenState extends State<ChatMoreInfoScreen>
   @override
   void dispose() {
     _promptController.dispose();
+    _customRatioController.dispose();
     _shimmerCtrl.dispose();
     _pulseCtrl.dispose();
     super.dispose();
+  }
+
+  void _showCustomRatioDialog() {
+    _customRatioController.text = _customAspectRatio;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF161B22),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Custom Aspect Ratio',
+          style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w700),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Enter ratio (e.g. 2:3, 5:4, 1:2)',
+                style: GoogleFonts.inter(color: Colors.white54, fontSize: 12)),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _customRatioController,
+              style: GoogleFonts.inter(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: '1:1',
+                hintStyle: GoogleFonts.inter(color: Colors.white30),
+                filled: true,
+                fillColor: Colors.white.withOpacity(0.05),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(color: _cyan.withOpacity(0.3)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(color: _cyan),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel', style: GoogleFonts.inter(color: Colors.white38)),
+          ),
+          TextButton(
+            onPressed: () {
+              final val = _customRatioController.text.trim();
+              if (val.contains(':')) {
+                setState(() => _customAspectRatio = val);
+              }
+              Navigator.pop(ctx);
+            },
+            child: Text('Apply', style: GoogleFonts.inter(color: _cyan, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _surpriseMe() {
@@ -184,9 +234,10 @@ class _ChatMoreInfoScreenState extends State<ChatMoreInfoScreen>
           ? '$prompt, $stylePrompt'
           : prompt;
 
-      final aspectRatio =
-          (_sizes.firstWhere((s) => s['label'] == _selectedSize)['api']
-              as String);
+      final rawRatio = _sizes.firstWhere(
+        (s) => s['label'] == _selectedSize,
+      )['api'] as String;
+      final aspectRatio = rawRatio == 'custom' ? _customAspectRatio : rawRatio;
 
       final token = await _getAccessToken();
       setState(() => _statusText = 'Painting your image...');
@@ -375,30 +426,10 @@ class _ChatMoreInfoScreenState extends State<ChatMoreInfoScreen>
               Row(
                 children: [
                   Text(
-                    'Imagen 3',
+                    'AI Image Generation',
                     style: GoogleFonts.jetBrainsMono(
                       color: _cyan,
                       fontSize: 10,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _green.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: _green.withOpacity(0.3)),
-                    ),
-                    child: Text(
-                      'Vertex AI',
-                      style: GoogleFonts.jetBrainsMono(
-                        color: _green,
-                        fontSize: 8,
-                        fontWeight: FontWeight.w700,
-                      ),
                     ),
                   ),
                 ],
@@ -541,7 +572,7 @@ class _ChatMoreInfoScreenState extends State<ChatMoreInfoScreen>
   Widget _buildSizeSection() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      _sectionLabel('Canvas Size', 'Imagen 3 supported aspect ratios'),
+      _sectionLabel('Canvas Size', 'Select ratio or set custom'),
       const SizedBox(height: 12),
       SizedBox(
         height: 86,
@@ -551,8 +582,10 @@ class _ChatMoreInfoScreenState extends State<ChatMoreInfoScreen>
           itemBuilder: (_, i) {
             final selected = _sizes[i]['label'] == _selectedSize;
             return GestureDetector(
-              onTap: () =>
-                  setState(() => _selectedSize = _sizes[i]['label'] as String),
+              onTap: () {
+                setState(() => _selectedSize = _sizes[i]['label'] as String);
+                if (_sizes[i]['label'] == 'Custom') _showCustomRatioDialog();
+              },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 margin: const EdgeInsets.only(right: 10),
@@ -812,7 +845,9 @@ class _ChatMoreInfoScreenState extends State<ChatMoreInfoScreen>
               border: Border.all(color: _green.withOpacity(0.3)),
             ),
             child: Text(
-              'Imagen 3 · ${(_sizes.firstWhere((s) => s['label'] == _selectedSize)['dim'] as String)}',
+              _selectedSize == 'Custom'
+                  ? 'AI · $_customAspectRatio'
+                  : 'AI · ${(_sizes.firstWhere((s) => s['label'] == _selectedSize)['dim'] as String)}',
               style: GoogleFonts.jetBrainsMono(color: _green, fontSize: 9),
             ),
           ),
